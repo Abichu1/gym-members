@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  gym-members:
+    build: .
+    container_name: gym-members
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - NODE_ENV=production

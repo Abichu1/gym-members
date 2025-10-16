@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gym Members</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 40px;
+    }
+    h1 {
+      color: #222;
+    }
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+      width: 320px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .members {
+      width: 90%;
+      max-width: 700px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .member {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+    }
+    .member img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    .info {
+      flex: 1;
+    }
+    .status.active {
+      color: green;
+      font-weight: bold;
+    }
+    .status.expired {
+      color: red;
+      font-weight: bold;
+    }
+    .delete-btn {
+      background: red;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gym Member Management</h1>
+
+  <form action="/add" method="POST" enctype="multipart/form-data">
+    <h3>Add New Member</h3>
+    <input type="text" name="name" placeholder="Full Name" required />
+    <input type="date" name="expiry" required />
+    <input type="file" name="photo" accept="image/*" required />
+    <button type="submit">Add Member</button>
+  </form>
+
+  <div class="members">
+    <h3>All Members</h3>
+    <div id="memberList"></div>
+  </div>
+
+  <script>
+    async function loadMembers() {
+      const res = await fetch("/members");
+      const members = await res.json();
+      const list = document.getElementById("memberList");
+      list.innerHTML = "";
+
+      members.forEach((m) => {
+        const expired = new Date(m.expiry) < new Date();
+        const statusClass = expired ? "expired" : "active";
+        list.innerHTML += `
+          <div class="member">
+            <img src="${m.photo}" alt="${m.name}">
+            <div class="info">
+              <div><b>${m.name}</b></div>
+              <div>Expiry: ${m.expiry}</div>
+              <div class="status ${statusClass}">${m.status}</div>
+              <a href="${m.url}" target="_blank">Profile</a>
+            </div>
+            <form method="POST" action="/delete/${m.id}">
+              <button class="delete-btn">Delete</button>
+            </form>
+          </div>`;
+      });
+    }
+
+    loadMembers();
+  </script>
+</body>
+</html>
