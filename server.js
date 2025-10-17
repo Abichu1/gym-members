@@ -6,13 +6,10 @@ import { nanoid } from 'nanoid';
 import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import dayjs from 'dayjs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -28,13 +25,13 @@ if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder, { recursive: true });
 
 const dbPath = path.join(dbFolder, 'members.db');
 
-const db = await open({
-  filename: dbPath,
-  driver: sqlite3.Database
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) console.error(err);
+  else console.log(`✅ Connected to SQLite DB at ${dbPath}`);
 });
 
-// Initialize members table if it doesn't exist
-await db.exec(`
+// Initialize members table
+db.run(`
   CREATE TABLE IF NOT EXISTS members (
     id TEXT PRIMARY KEY,
     name TEXT,
@@ -44,51 +41,49 @@ await db.exec(`
   )
 `);
 
-console.log(`✅ Connected to SQLite DB at ${dbPath}`);
-
 // --------------------
 // Routes
 // --------------------
 
 // Add new member
-app.post('/members', upload.single('file'), async (req, res) => {
-  try {
-    const { name, expiry, status, url } = req.body;
-    const id = nanoid();
+app.post('/members', upload.single('file'), (req, res) => {
+  const { name, expiry, status, url } = req.body;
+  const id = nanoid();
 
-    await db.run(
-      'INSERT INTO members (id, name, expiry, status, url) VALUES (?, ?, ?, ?, ?)',
-      [id, name, expiry, status, url || '']
-    );
-
-    res.status(201).json({ success: true, id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+  db.run(
+    'INSERT INTO members (id, name, expiry, status, url) VALUES (?, ?, ?, ?, ?)',
+    [id, name, expiry, status, url || ''],
+    function (err) {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, error: err.message });
+      }
+      res.status(201).json({ success: true, id });
+    }
+  );
 });
 
 // View all members
-app.get('/members', async (req, res) => {
-  try {
-    const members = await db.all('SELECT * FROM members');
-    res.json(members);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.get('/members', (req, res) => {
+  db.all('SELECT * FROM members', (err, rows) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+    res.json(rows);
+  });
 });
 
 // Delete member
-app.delete('/members/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.run('DELETE FROM members WHERE id = ?', [id]);
+app.delete('/members/:id', (req, res) => {
+  const { id } = req.params;
+  db.run('DELETE FROM members WHERE id = ?', [id], function (err) {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
     res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+  });
 });
 
 // --------------------
