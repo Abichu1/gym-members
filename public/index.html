@@ -1,131 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gym Members</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f4f9;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background: #f4f4f4;
       margin: 0;
-      padding: 40px;
+      padding: 0;
     }
-    h1 {
-      color: #222;
-    }
-    form {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      margin-bottom: 30px;
-      width: 320px;
-    }
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-    }
-    button {
-      background: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #0056b3;
-    }
-    .members {
-      width: 90%;
-      max-width: 700px;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .member {
+    h1 { text-align: center; margin-top: 20px; }
+    #members-container {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #eee;
-      padding: 10px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      padding: 20px;
     }
-    .member img {
-      width: 50px;
-      height: 50px;
+    .member-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      width: 200px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .member-card img {
+      width: 100px;
+      height: 100px;
       object-fit: cover;
       border-radius: 50%;
-      margin-right: 10px;
+      margin-bottom: 10px;
     }
-    .info {
-      flex: 1;
-    }
-    .status.active {
-      color: green;
+    .status {
       font-weight: bold;
+      margin-bottom: 5px;
     }
-    .status.expired {
-      color: red;
-      font-weight: bold;
-    }
+    .status.active { color: green; }
+    .status.inactive { color: red; }
     .delete-btn {
       background: red;
       color: white;
       border: none;
-      padding: 6px 10px;
-      border-radius: 6px;
+      padding: 5px 10px;
       cursor: pointer;
+      border-radius: 5px;
+      margin-top: 5px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      max-width: 400px;
+      margin: 0 auto 30px;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    form input, form select {
+      margin-bottom: 10px;
+      padding: 8px;
+      font-size: 16px;
+    }
+    form button {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
-  <h1>Gym Member Management</h1>
 
-  <form action="/add" method="POST" enctype="multipart/form-data">
-    <h3>Add New Member</h3>
-    <input type="text" name="name" placeholder="Full Name" required />
-    <input type="date" name="expiry" required />
-    <input type="file" name="photo" accept="image/*" required />
-    <button type="submit">Add Member</button>
-  </form>
+<h1>Gym Members</h1>
 
-  <div class="members">
-    <h3>All Members</h3>
-    <div id="memberList"></div>
-  </div>
+<form id="add-member-form" enctype="multipart/form-data">
+  <input type="text" name="name" placeholder="Member Name" required>
+  <input type="date" name="expiry" required>
+  <select name="status" required>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+  </select>
+  <input type="url" name="member_url" placeholder="Member URL">
+  <input type="file" name="image">
+  <button type="submit">Add Member</button>
+</form>
 
-  <script>
-    async function loadMembers() {
-      const res = await fetch("/members");
-      const members = await res.json();
-      const list = document.getElementById("memberList");
-      list.innerHTML = "";
+<div id="members-container"></div>
 
-      members.forEach((m) => {
-        const expired = new Date(m.expiry) < new Date();
-        const statusClass = expired ? "expired" : "active";
-        list.innerHTML += `
-          <div class="member">
-            <img src="${m.photo}" alt="${m.name}">
-            <div class="info">
-              <div><b>${m.name}</b></div>
-              <div>Expiry: ${m.expiry}</div>
-              <div class="status ${statusClass}">${m.status}</div>
-              <a href="${m.url}" target="_blank">Profile</a>
-            </div>
-            <form method="POST" action="/delete/${m.id}">
-              <button class="delete-btn">Delete</button>
-            </form>
-          </div>`;
-      });
-    }
+<script>
+const form = document.getElementById('add-member-form');
+const container = document.getElementById('members-container');
 
-    loadMembers();
-  </script>
+// Fetch all members and display
+async function fetchMembers() {
+  container.innerHTML = '';
+  try {
+    const res = await fetch('/members');
+    const members = await res.json();
+
+    members.forEach(member => {
+      const card = document.createElement('div');
+      card.className = 'member-card';
+
+      const img = document.createElement('img');
+      img.src = member.image_url || 'https://via.placeholder.com/100';
+      card.appendChild(img);
+
+      const name = document.createElement('div');
+      name.textContent = member.name;
+      card.appendChild(name);
+
+      const expiry = document.createElement('div');
+      expiry.textContent = `Expiry: ${member.expiry}`;
+      card.appendChild(expiry);
+
+      const status = document.createElement('div');
+      status.textContent = member.status.toUpperCase();
+      status.className = `status ${member.status}`;
+      card.appendChild(status);
+
+      const url = document.createElement('div');
+      if (member.member_url) {
+        const a = document.createElement('a');
+        a.href = member.member_url;
+        a.textContent = 'Member Link';
+        a.target = '_blank';
+        url.appendChild(a);
+      }
+      card.appendChild(url);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete';
+      delBtn.className = 'delete-btn';
+      delBtn.onclick = async () => {
+        if (confirm('Delete this member?')) {
+          await fetch(`/members/${member.id}`, { method: 'DELETE' });
+          fetchMembers();
+        }
+      };
+      card.appendChild(delBtn);
+
+      container.appendChild(card);
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// Handle add member form
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = new FormData(form);
+
+  try {
+    await fetch('/members', {
+      method: 'POST',
+      body: data
+    });
+    form.reset();
+    fetchMembers();
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// Initial fetch
+fetchMembers();
+</script>
+
 </body>
 </html>
