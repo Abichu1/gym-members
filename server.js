@@ -3,65 +3,81 @@ import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import path from "path";
 import { fileURLToPath } from "url";
+import bodyParser from "body-parser";
+import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-app.use(express.json());
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Initialize SQLite
+sqlite3.verbose();
 let db;
 
 async function initDB() {
   db = await open({
-    filename: path.join(__dirname, "members.db"),
-    driver: sqlite3.Database,
+    filename: path.join(__dirname, "gym-members.db"),
+    driver: sqlite3.Database
   });
 
+  // Create table if not exists
   await db.exec(`
     CREATE TABLE IF NOT EXISTS members (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      expiry_date TEXT,
-      status TEXT,
-      image_path TEXT,
-      url TEXT
+      name TEXT NOT NULL,
+      phone TEXT,
+      membership_id TEXT UNIQUE,
+      expiry_date TEXT
     )
   `);
+
+  console.log("✅ Local SQLite database initialized");
 }
 
+// Routes
 app.get("/", (req, res) => {
-  res.send("✅ Gym Members Server Running Successfully");
+  res.send("Gym Members API running successfully 🚀");
 });
 
-// Get all members
-app.get("/members", async (req, res) => {
+app.get("/api/members", async (req, res) => {
   const members = await db.all("SELECT * FROM members");
   res.json(members);
 });
 
-// Add new member
-app.post("/members", async (req, res) => {
-  const { name, expiry_date, status, image_path, url } = req.body;
-  await db.run(
-    "INSERT INTO members (name, expiry_date, status, image_path, url) VALUES (?, ?, ?, ?, ?)",
-    [name, expiry_date, status, image_path, url]
-  );
-  res.json({ message: "✅ Member added" });
+app.post("/api/members", async (req, res) => {
+  try {
+    const { name, phone, membership_id, expiry_date } = req.body;
+    await db.run(
+      "INSERT INTO members (name, phone, membership_id, expiry_date) VALUES (?, ?, ?, ?)",
+      [name, phone, membership_id, expiry_date]
+    );
+    res.status(201).json({ message: "Member added successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: "Failed to add member (maybe duplicate ID)" });
+  }
 });
 
-// Delete member
-app.delete("/members/:id", async (req, res) => {
-  const { id } = req.params;
-  await db.run("DELETE FROM members WHERE id = ?", id);
-  res.json({ message: "🗑️ Member deleted" });
+app.delete("/api/members/:id", async (req, res) => {
+  try {
+    await db.run("DELETE FROM members WHERE id = ?", req.params.id);
+    res.json({ message: "Member deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete member" });
+  }
 });
 
+// Start server
 initDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 });
