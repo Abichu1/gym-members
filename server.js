@@ -1,73 +1,99 @@
-import express from "express";
-import sqlite3 from "sqlite3";
-import path from "path";
-import { fileURLToPath } from "url";
-import bodyParser from "body-parser";
-import cors from "cors";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// server.js
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import { nanoid } from 'nanoid';
+import fs from 'fs';
+import path from 'path';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
+import dayjs from 'dayjs';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
+// Enable CORS
 app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Initialize SQLite3 (local DB)
-sqlite3.verbose();
-const dbPath = path.join(__dirname, "gym-members.db");
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) console.error("❌ Database connection error:", err);
-  else console.log("✅ Connected to local SQLite database");
+// File uploads
+const upload = multer({ dest: 'uploads/' });
+
+// --------------------
+// Database setup
+// --------------------
+const dbFolder = process.env.DATABASE_FOLDER || './data';
+if (!fs.existsSync(dbFolder)) fs.mkdirSync(dbFolder, { recursive: true });
+
+const dbPath = path.join(dbFolder, 'members.db');
+
+const db = await open({
+  filename: dbPath,
+  driver: sqlite3.Database
 });
 
-// Create table if not exists
-db.run(`
+// Initialize members table if it doesn't exist
+await db.exec(`
   CREATE TABLE IF NOT EXISTS members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    phone TEXT,
-    membership_id TEXT UNIQUE,
-    expiry_date TEXT
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    expiry TEXT,
+    status TEXT,
+    url TEXT
   )
 `);
 
+console.log(`✅ Connected to SQLite DB at ${dbPath}`);
+
+// --------------------
 // Routes
-app.get("/", (req, res) => {
-  res.send("🏋️ Gym Members API is live!");
+// --------------------
+
+// Add new member
+app.post('/members', upload.single('file'), async (req, res) => {
+  try {
+    const { name, expiry, status, url } = req.body;
+    const id = nanoid();
+
+    await db.run(
+      'INSERT INTO members (id, name, expiry, status, url) VALUES (?, ?, ?, ?, ?)',
+      [id, name, expiry, status, url || '']
+    );
+
+    res.status(201).json({ success: true, id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.get("/api/members", (req, res) => {
-  db.all("SELECT * FROM members", (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+// View all members
+app.get('/members', async (req, res) => {
+  try {
+    const members = await db.all('SELECT * FROM members');
+    res.json(members);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.post("/api/members", (req, res) => {
-  const { name, phone, membership_id, expiry_date } = req.body;
-  db.run(
-    "INSERT INTO members (name, phone, membership_id, expiry_date) VALUES (?, ?, ?, ?)",
-    [name, phone, membership_id, expiry_date],
-    function (err) {
-      if (err) {
-        console.error(err.message);
-        return res.status(400).json({ error: "Failed to add member" });
-      }
-      res.status(201).json({ id: this.lastID, message: "Member added" });
-    }
-  );
+// Delete member
+app.delete('/members/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.run('DELETE FROM members WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-app.delete("/api/members/:id", (req, res) => {
-  db.run("DELETE FROM members WHERE id = ?", req.params.id, function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ deletedID: req.params.id });
-  });
-});
-
+// --------------------
+// Start server
+// --------------------
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
